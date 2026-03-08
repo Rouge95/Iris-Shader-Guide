@@ -1,0 +1,50 @@
+# An Introduction to Shaders
+
+## Foreword
+
+This tutorial is based on one written by [saadam1n](https://github.com/saadam1n/MinecraftShaderProgramming). This newer tutorial has been necessitated by the fact that since the tutorial was written, the general state of development on Minecraft shaders has advanced somewhat, and other developers have identified several areas where this can be improved.
+
+## Prerequisites
+
+:::caution[Warning]
+**This tutorial is designed for people who already know how to code. If you do not know how to code, you will likely struggle with this tutorial.** A general understanding of how computer graphics work is useful but not necessary. For this reason, at times, you may not be shown all of the code. This is to ensure you are reading enough to understand what you are doing. All of the necessary information is provided for you to achieve the intended end result.
+:::
+
+You will need:
+
+- A suitable text editor for modifying shader code (see below).
+- A computer capable of running OpenGL 3.3. If your computer was manufactured in the last 15 years it likely supports OpenGL 3.3. Note that whilst OpenGL works on macOS, Apple will not update the drivers to support any version past OpenGL 4.1 and some things may not work correctly.
+- A willingness to learn. Shaders are hard, and you can't just pick them up overnight. Do not expect to complete this tutorial and become the next Sonic Ether.
+- An instance of Minecraft with Iris, Optifine, or Oculus installed. Since this tutorial is in the Iris documentation, it is assumed you are using Iris.
+
+## Development Environment
+
+Any text editor is suitable for shader development. One popular choice is [Visual Studio Code](https://code.visualstudio.com/), but any program which can edit text files is sufficient. A simpler but popular editor is [Notepad++](https://notepad-plus-plus.org/).
+
+If you are using Visual Studio Code (which we recommend), there are a couple of extensions you can use which can help with development.
+
+- [GLSL Syntax for VS Code](https://marketplace.visualstudio.com/items?itemName=GeForceLegend.vscode-glsl)
+- [Language Server for Minecraft Shaderpacks](https://marketplace.visualstudio.com/items?itemName=GeForceLegend.vscode-mcshader)
+
+It's helpful to be able to see your game logs as the game is running. In the vanilla Minecraft launcher, you can do this by enabling 'keep the Launcher open while games are running' and 'Open output log when Minecraft: Java Edition starts" in the settings.
+If you do not use the vanilla launcher, but your launcher does not support viewing logs in realtime, a popular choice is [Prism Launcher](https://prismlauncher.org/).
+
+It is also useful to enable debug mode. You can do this by pressing <kbd>Ctrl</kbd>+<kbd>D</kbd> in the shader selection screen. For more info, see [debugging shaders](/current/reference/miscellaneous/debugging_shaders/).
+
+## OpenGL and GLSL
+
+Minecraft is built using OpenGL, a high-level graphics API. OpenGL itself is not a piece of software; rather, it merely describes a specification for creating computer graphics that hardware developers are responsible for implementing. OpenGL uses GLSL (OpenGL Shading Language), which is the language Minecraft shaderpacks are developed in. GLSL is syntactically similar to C but introduces many extra features specifically designed for working with graphics.
+
+Old versions of Minecraft used an ancient version of OpenGL - OpenGL 2.0. Most older shader packs, for this reason, were written using GLSL version 120. In version 1.17, Minecraft was updated to use OpenGL 3.2, which targets version 150. However, shader loader mods like Iris and Optifine allow the use of any version of OpenGL/GLSL the user's hardware supports. Since OpenGL 3.3 requires 'DX10 Class' hardware, any computer released in the last decade should support it, so this is what we will be using. OpenGL 3.3 uses GLSL version 330.
+
+For the next part it is important to note that since most of the game's development was done on OpenGL 2.0, the rendering pipeline the game uses does not take advantage of modern hardware features.
+
+## How Shaders Work
+
+A "shader" is, by definition, any program that is executed on the GPU. For Minecraft, these shader programs (also known as passes) can be sorted into two distinct categories: fullscreen passes, which execute for the entire screen, and gbuffers passes, which execute only for specific geometry. Each individual program is composed of several shader stages, two of which are required: a vertex shader, which executes once for each vertex of the geometry, and a fragment shader, which executes once for every pixel that covers the geometry. You can optionally include a compute, geometry, and/or tessellation stage for each pass.
+
+:::tip[CPU vs GPU]
+Odds are, all your previous code has been executed on the CPU. Shaders are instead executed on the GPU (also known as a graphics or video card). CPUs are great at performing complex sequential tasks, whereas GPUs are great at executing simple tasks in parallel. In fact, modern high-end graphics cards are capable of performing _trillions_ of calculations per second! You can read more about the differences [here](https://www.intel.com/content/www/us/en/products/docs/processors/cpu-vs-gpu.html).
+:::
+
+For a full list of programs and what they do, see the [Iris Docs](/current/reference/programs/overview/).
