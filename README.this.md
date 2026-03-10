@@ -17,8 +17,8 @@ Example:
             └── composite.fsh
 ```
 
-- `.vsh` = vertex shader
-- `.fsh` = fragment shader
+- `.vsh` = vertex shader, A vertex shader runs once for every vertex in a 3D model.
+- `.fsh` = fragment shader, A fragment shader runs once for every pixel (fragment) produced by rasterization
 - **Full-screen passes** like this one act on the entire rendered image.
 - **G-buffer passes** act only on geometry (blocks, entities, etc.) and store data like normals, depth, color, etc.
 
