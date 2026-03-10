@@ -152,178 +152,160 @@ else
 
 ---
 
-## 6. Conceptual Summary
+Focus on the **goal**: the GPU wants a **new texture coordinate** computed by a **linear transform**.
 
-- **Vertex shaders:** position vertices in clip space, pass interpolated data (UVs) to fragments.
-- **Fragment shaders:** compute color per pixel, often using textures and UVs.
-- **Full-screen passes:** operate on the entire rendered scene (post-processing).
-- **Dot product for grayscale:** linear algebra gives a scalar intensity.
-- **UVs:** the universal way to reference screen location for spatial effects.
-- **Parallel GPU execution:** each vertex or fragment runs independently → high-performance rendering.
+Your line:
 
-> Deep insight: The tutorial lays the foundation for **post-processing, color grading, spatial effects, and mood control** — all of which scale to more advanced shader techniques like bloom, shadows, reflections, or volumetric effects.
+```glsl
+texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
+```
+
+means:
+
+**“Take the original texture coordinate and transform it with a matrix.”**
 
 ---
 
-If you want, I can now **draw the conceptual map connecting vertex → fragment → UV → colortex → color transformation**, showing exactly how the GPU handles this step by step. This makes the shader pipeline fully tangible.
+# 1. Start with the original coordinate
 
-1. Vertex
+A vertex has a texture coordinate:
 
-Definition: A vertex is a single point in 3D space.
-
-Data it contains:
-
-Position (x, y, z)
-
-Optional: color, normal, texture coordinates (UVs), etc.
-
-Role in rendering:
-
-Vertices are the building blocks of geometry.
-
-The GPU connects vertices to form shapes like triangles, which are what actually get drawn on the screen.
+```
+(u, v)
+```
 
 Example:
-If you want a square, you define 4 vertices for its corners:
 
-(0,0) ---- (1,0)
-| |
-| |
-(0,1) ---- (1,1)
+```
+(0.3, 0.7)
+```
 
-Each of these points is a vertex.
-
-2. Quad
-
-Definition: A quad is a rectangle made of four vertices.
-
-How GPUs handle it:
-
-Most GPUs don’t render quads directly.
-
-They split the quad into two triangles, because triangles are guaranteed to be planar and easy to process.
-
-Why quads in this shader?
-
-In the composite shader tutorial, the full-screen pass draws a single quad covering the entire screen.
-
-This quad acts like a “canvas” for the post-processing effect.
-
-Vertex arrangement of a screen-covering quad:
-
-Vertex 0: top-left (0,1)
-Vertex 1: top-right (1,1)
-Vertex 2: bottom-left (0,0)
-Vertex 3: bottom-right (1,0)
-
-The fragment shader runs once for every pixel inside the triangles formed by these four vertices.
-
-The vertex shader runs once per vertex (4 times), interpolating data (like UV coordinates) for the fragment shader.
-
-Perfect — let’s map the entire **shader pipeline conceptually**, step by step, so you can see exactly how Minecraft + Iris handles a full-screen post-processing effect.
+This says **where to sample in the texture image**.
 
 ---
 
-## **1. Vertex Stage (Vertex Shader)**
+# 2. The matrix defines how coordinates change
 
-**Input:** Four vertices of the fullscreen quad
-**Process:**
+Example matrix:
 
-1. Each vertex has:
-   - Position `(x, y, z)` in model space
-   - Texture coordinates `(u, v)` → UVs
+```
+| 2 0 0 0 |
+| 0 2 0 0 |
+| 0 0 1 0 |
+| 0 0 0 1 |
+```
 
-2. The vertex shader transforms the position:
-   - `gl_Position = ftransform();`
-   - Converts model space → clip space → normalized device coordinates → screen space
+Multiply it with:
 
-3. It outputs interpolated UVs:
-   - `out vec2 texcoord;`
-   - These UVs will be **linearly interpolated across the triangles** for every pixel in the fragment stage.
+```
+(u, v, 0, 1)
+```
 
-**Output:** Transformed positions + interpolated UV coordinates
+Compute:
 
----
+```
+x' = 2u
+y' = 2v
+```
 
-## **2. Rasterization**
+So
 
-**What happens:**
+```
+(0.3, 0.7) → (0.6, 1.4)
+```
 
-- GPU takes the two triangles that make up the quad and determines **which pixels they cover on the screen**.
-- Each covered pixel becomes a **fragment**, ready for the fragment shader.
+Now the GPU samples the texture at **(0.6, 1.4)** instead of **(0.3, 0.7)**.
 
-> Conceptually: Think of it like a stencil — the GPU marks all pixels inside the triangles and sends them to the next stage.
+If texture wrapping is enabled, this makes the texture **tile**.
 
----
-
-## **3. Fragment Stage (Fragment Shader)**
-
-**Input per fragment:**
-
-- Interpolated UV (`texcoord`) from the vertex shader
-- Uniforms like `sampler2D colortex0`
-
-**Process per pixel:**
-
-1. Sample the original screen texture:
-
-   ```glsl
-   vec4 tex = texture(colortex0, texcoord);
-   ```
-
-   - Fetches the pixel color from the texture (the scene as rendered so far).
-
-2. Apply transformations (example: grayscale):
-
-   ```glsl
-   float grayscale = dot(tex.rgb, vec3(1.0/3.0));
-   vec3 finalColor = vec3(grayscale);
-   ```
-
-3. Optionally modify by position (UV) to create effects:
-
-   ```glsl
-   if (texcoord.x < 0.5) finalColor *= vec3(1,0,0); // left red
-   else finalColor *= vec3(0,1,0); // right green
-   ```
-
-4. Preserve alpha and write the output:
-
-   ```glsl
-   color = vec4(finalColor, tex.a);
-   ```
+So the matrix **moves the lookup position** inside the texture.
 
 ---
 
-## **4. Output / Render Target**
+# 3. Why a matrix is used
 
-- The fragment shader writes to the **colortex0 buffer**:
-  - This is a GPU texture representing the final image of this pass.
-  - It may be used as input for subsequent passes (e.g., bloom, lighting).
+Because one matrix can represent many transformations:
+
+| Matrix effect | Result          |
+| ------------- | --------------- |
+| scale         | texture tiles   |
+| translate     | texture scrolls |
+| rotate        | texture spins   |
+| shear         | texture skews   |
+
+Example scrolling texture:
+
+```
+|1 0 0 0.2|
+|0 1 0 0  |
+|0 0 1 0  |
+|0 0 0 1  |
+```
+
+This produces:
+
+```
+(u,v) → (u + 0.2, v)
+```
+
+The texture appears to **slide across the surface**.
 
 ---
 
-## **Step-by-Step Flow Summary**
+# 4. Why the vector has 4 components
 
-| Stage           | Input                    | Action                                       | Output                     |
-| --------------- | ------------------------ | -------------------------------------------- | -------------------------- |
-| Vertex Shader   | 4 vertices of quad       | Transform positions, output interpolated UVs | Clip-space positions + UVs |
-| Rasterization   | Triangles from quad      | Determine pixels covered                     | Fragments                  |
-| Fragment Shader | Fragment UVs + colortex0 | Sample color, compute grayscale/tints        | Final pixel color          |
-| Render Target   | Fragment output          | Write to texture buffer                      | Screen image / next pass   |
+The GPU needs
+
+```
+(u, v, 0, 1)
+```
+
+because the matrix is **4×4**.
+
+The **1** allows translation to work:
+
+```
+x' = u + offset
+```
+
+Without that extra component, the matrix could only **scale or rotate**, not **shift coordinates**.
 
 ---
 
-### **Key Concepts in this Pipeline**
+# 5. Why `.xy` is taken
 
-1. **Vertices → Triangles → Fragments:** GPU processes geometry first, then fills in pixels.
-2. **UV interpolation:** Bridges geometry (vertex positions) to per-pixel calculations.
-3. **Textures (colortex buffers):** Store image data between passes; allows post-processing effects.
-4. **Parallel execution:** Every vertex and fragment runs independently → high performance.
-5. **Shader flexibility:** Once UVs and textures are available, you can compute effects like grayscale, tinting, gradients, fog, etc., mathematically per pixel.
+After multiplication you get
+
+```
+(x', y', z', w')
+```
+
+But textures are **2-dimensional**, so only:
+
+```
+(x', y')
+```
+
+are used.
 
 ---
 
-If you want, I can **draw a diagram with arrows showing vertices → quad → fragments → UV sampling → final color**, so it’s visually intuitive and you can see the GPU “flow” like a pipeline.
+# The key mental picture
 
-Do you want me to make that visual diagram?
+Original lookup:
+
+```
+texture(u,v)
+```
+
+After the matrix:
+
+```
+texture(transformed_u, transformed_v)
+```
+
+So the matrix **warps the coordinate system used to read the texture**.
+
+---
+
+If you'd like, I can also show the **one geometric picture that makes matrix transforms instantly intuitive** (why the numbers actually move the point).
